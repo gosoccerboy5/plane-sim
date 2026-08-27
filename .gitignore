@@ -2,3 +2,4 @@
 *.dsym
 main
 .vscode
+.DS_STORE
