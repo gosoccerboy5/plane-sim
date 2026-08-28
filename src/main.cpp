@@ -24,6 +24,12 @@ float random() {
     return dis(gen);
 }
 
+void resetToZero(float& input, float step) {
+    if (std::abs(input) < step) input = 0;
+    else if (input < 0) input += step;
+    else input -= step;
+}
+
 int main() {
     const int screenWidth = 1600;
     const int screenHeight = 900;
@@ -63,15 +69,21 @@ int main() {
         mouseWheelMomentum *= 0.9;
         
         
-        bool pitching = false, rolling = false;
+        bool pitching = false, rolling = false, yawing = false;
+        float elevatorPitchRate = 0.01, aileronPitchRate = 0.02, rudderPitchRate = 0.01;
         
         if (IsKeyDown(KEY_A)) {
-            plane.yaw(0.01);
+            plane.rudderDeflection -= rudderPitchRate;
+            yawing = true;
         }
         if (IsKeyDown(KEY_D)) {
-            plane.yaw(-0.01);
+            plane.rudderDeflection += rudderPitchRate;
+            yawing = true;
         }
-        float elevatorPitchRate = 0.01;
+        if (!yawing) {
+            resetToZero(plane.rudderDeflection, rudderPitchRate);
+        } else plane.rudderDeflection = Clamp(plane.rudderDeflection, -DEG2RAD*20, DEG2RAD*20);
+        
         if (IsKeyDown(KEY_S)) {
             plane.elevatorDeflection += elevatorPitchRate;
             pitching = true;
@@ -81,13 +93,9 @@ int main() {
             pitching = true;
         }
         if (!pitching) {
-            if (std::abs(plane.elevatorDeflection) < elevatorPitchRate) plane.elevatorDeflection = 0;
-            else if (plane.elevatorDeflection < 0) plane.elevatorDeflection += elevatorPitchRate;
-            else plane.elevatorDeflection -= elevatorPitchRate;
-        }
-        plane.elevatorDeflection = Clamp(plane.elevatorDeflection, -DEG2RAD*20, DEG2RAD*20);
+            resetToZero(plane.elevatorDeflection, elevatorPitchRate);
+        } else plane.elevatorDeflection = Clamp(plane.elevatorDeflection, -DEG2RAD*10, DEG2RAD*20);
         
-        float aileronPitchRate = 0.02;
         if (IsKeyDown(KEY_E)) {
             plane.aileronDeflection += aileronPitchRate;
             rolling = true;
@@ -97,11 +105,9 @@ int main() {
             rolling = true;
         } 
         if (!rolling) {
-            if (std::abs(plane.aileronDeflection) < aileronPitchRate) plane.aileronDeflection = 0;
-            else if (plane.aileronDeflection < 0) plane.aileronDeflection += aileronPitchRate;
-            else plane.aileronDeflection -= aileronPitchRate;
-        }
-        plane.aileronDeflection = Clamp(plane.aileronDeflection, -DEG2RAD*20, DEG2RAD*20);
+            resetToZero(plane.aileronDeflection, aileronPitchRate);
+        } else plane.aileronDeflection = Clamp(plane.aileronDeflection, -DEG2RAD*20, DEG2RAD*20);
+        
         plane.update();
         
         
@@ -142,9 +148,10 @@ int main() {
                 -cameraDistance);
             camera.up = plane.up;
         } else if (cameraMode == CameraType::FIRST_PERSON) {
-            camAngle.y = Clamp(camAngle.y, -1.5, 1);
+            camAngle.y = Clamp(camAngle.y, -1.45, 1);
+            camAngle.x = Clamp(camAngle.x, -0.75*PI, 0.75*PI);
             camera.up = plane.up;
-            camera.position = plane.position + Vector3Scale(plane.up, 1) + Vector3Scale(plane.front, .5);
+            camera.position = plane.position + Vector3Scale(plane.up, .5) + Vector3Scale(plane.front, .5);
             camera.target = camera.position + Vector3Scale(
                 Vector3Scale(plane.right(), sin(camAngle.x)*cos(-camAngle.y)) + 
                 Vector3Scale(plane.up, sin(-camAngle.y)) + 
@@ -171,6 +178,11 @@ int main() {
                 DrawModel(*plane.model, plane.position, 1.0f, WHITE);
                 
                 DrawModel(map, {0, 0, 0}, 1.0f, WHITE);
+                
+                
+                rlDisableDepthMask();
+                DrawSphere(plane.position + Vector3Scale(plane.front, 100), .4, RED);
+                rlEnableDepthMask();
             EndMode3D();
 
 

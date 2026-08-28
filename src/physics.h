@@ -24,6 +24,7 @@ class Plane {
     Model* model;
     float elevatorDeflection = 0;
     float aileronDeflection = 0; 
+    float rudderDeflection = 0;
     
     Plane(Model* model): model(model) {
         velocity = {0, 0, 5};
@@ -39,6 +40,7 @@ class Plane {
         position = position + velocity;
         pitch(elevatorDeflection * 0.03);
         roll(aileronDeflection * .2);
+        yaw(rudderDeflection * 0.01);
     }
     Vector3 right() const {
         return Vector3CrossProduct(front, up);
@@ -54,7 +56,7 @@ class Plane {
         normalizeOrientationVectors();
     }
     void yaw(double angle) {
-        front = rotateVectorAroundAxis(front, up, angle);
+        front = rotateVectorAroundAxis(front, up, -angle);
         normalizeOrientationVectors();
     }
 };
