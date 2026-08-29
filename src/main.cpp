@@ -22,7 +22,7 @@ enum CameraType {
     FIRST_PERSON,
 };
 
-float random() {
+float randomFloat() {
     static std::random_device rd;
     static std::mt19937 gen(rd());
     
@@ -191,7 +191,7 @@ int main() {
             cockpit.transform = plane.model->transform;
         }
         if (plane.elevatorDeflection != 0) {
-            Vector3 offset = Vector3Scale({random(), random(), random()}, plane.elevatorDeflection * 0.03);
+            Vector3 offset = Vector3Scale({randomFloat()-0.5f, randomFloat()-0.5f, randomFloat()-0.5f}, plane.elevatorDeflection * 0.03);
             if (cameraMode == CameraType::FIRST_PERSON) camera.position = camera.position + offset;
             else if (cameraMode == CameraType::THIRD_PERSON || cameraMode == CameraType::THIRD_PERSON_LOCKED) plane.position = plane.position + offset;
         }
@@ -209,16 +209,11 @@ int main() {
             ClearBackground(RAYWHITE);
 
             BeginMode3D(camera);
-                
-
-                
-                
                 if (cameraMode == CameraType::FIRST_PERSON) {
                     DrawModel(cockpit, plane.position, 1.0f, WHITE);
                 } else DrawModel(*plane.model, plane.position, 1.0f, WHITE);
                 
                 DrawModel(map, {0, 0, 0}, 1.0f, WHITE);
-                
                 
                 rlDisableDepthMask();
                 DrawSphere(plane.position + Vector3Scale(plane.front, 100), .4, RED);
