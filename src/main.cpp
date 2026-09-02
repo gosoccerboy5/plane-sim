@@ -75,6 +75,7 @@ int main() {
     float mouseWheelMomentum = 0;
 
     Model f16 = LoadModel("src/assets/plane.obj");
+    Model enemyPlane = LoadModel("src/assets/plane.obj");
     Model f16Cockpit = LoadModel("src/assets/cockpit.obj");
     Model map = LoadModel("src/assets/landscape.obj"); 
     Model skybox = LoadModel("src/assets/skybox.obj");
@@ -91,6 +92,13 @@ int main() {
     SetShaderValue(depthShader, flipTextureLoc, (int[]){ 1 }, SHADER_UNIFORM_INT); // Flip Y texture
     
     Plane plane(&f16, &f16Cockpit);
+    plane.position = {4000.0f, 300.0f, 4000.0f};
+
+    Plane enemy(&enemyPlane);
+    enemy.position = {4000.0f, 300.0f, 4100.0f};
+    enemy.front = {0.0f, 0.0f, -1.0f};
+
+    bool hasGotMouseInput = false;
 
 
     PerlinNoise<8> PerlinMap{};
@@ -116,11 +124,13 @@ int main() {
             }
 
             Vector2 mouseMovement = GetMouseDelta();
-            if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT) || IsCursorHidden()) {
+            
+            if (hasGotMouseInput && (IsMouseButtonDown(MOUSE_BUTTON_RIGHT) || IsCursorHidden())) {
                 camAngle.x += mouseMovement.x*0.01;
                 camAngle.y -= mouseMovement.y*0.01;
             }
             camAngle.y = Clamp(camAngle.y, -3.14/2, 3.14/2);
+            if (!hasGotMouseInput && (mouseMovement.x != 0 || mouseMovement.y != 0)) hasGotMouseInput = true;
 
             mouseWheelMomentum += GetMouseWheelMove() * 0.02;
             camera.fovy = Clamp(camera.fovy * (1-mouseWheelMomentum), 10, 100);
@@ -167,7 +177,8 @@ int main() {
             } else plane.aileronDeflection = Clamp(plane.aileronDeflection, -DEG2RAD*20, DEG2RAD*20);
             
             plane.update();
-            
+            enemy.attack(plane);
+            enemy.update();
             
             if (IsKeyPressed(KEY_C)) {
                 if (cameraMode == CameraType::THIRD_PERSON) {
@@ -182,12 +193,6 @@ int main() {
                 }
             }
         
-            plane.model->transform = {
-                plane.right().x, plane.up.x, plane.front.x, 0.0f,
-                plane.right().y, plane.up.y, plane.front.y, 0.0f,
-                plane.right().z, plane.up.z, plane.front.z, 0.0f,
-                0.0f,            0.0f,       0.0f,          1.0f,
-            };
             //transform matrix can be formed directly from orientation vectors as columns (orientation vectors form x, y, z axes)
             //as opposed to using MatrixRotateXYZ from euler angles (suffers from gimbal lock)
             
@@ -206,8 +211,8 @@ int main() {
                     -cameraDistance);
                 camera.up = plane.up;
             } else if (cameraMode == CameraType::FIRST_PERSON) {
-                camAngle.x = Clamp(camAngle.x, -0.75*PI, 0.75*PI);
-                camAngle.y = Clamp(camAngle.y, -.7, 1.45);
+                camAngle.x = Clamp(camAngle.x, -0.95*PI, 0.95*PI);
+                camAngle.y = Clamp(camAngle.y, -.7, 1.55);
                 camera.up = plane.up;
                 camera.position = plane.position + Vector3Scale(plane.up, .7) + Vector3Scale(plane.front, .65);
                 camera.target = camera.position + Vector3Scale(
@@ -215,11 +220,13 @@ int main() {
                     Vector3Scale(plane.up, sin(camAngle.y)) + 
                     Vector3Scale(plane.front, cos(camAngle.x)*cos(camAngle.y)), 
                     10);
-                plane.cockpitModel->transform = plane.model->transform;
             }
             if (plane.elevatorDeflection != 0) {
                 Vector3 offset = Vector3Scale({randomFloat()-0.5f, randomFloat()-0.5f, randomFloat()-0.5f}, plane.elevatorDeflection * 0.03);
-                if (cameraMode == CameraType::FIRST_PERSON) camera.position = camera.position + offset;
+                if (cameraMode == CameraType::FIRST_PERSON) {
+                    camera.position = camera.position + offset;
+                    camera.target = camera.target + offset;
+                }
                 else if (cameraMode == CameraType::THIRD_PERSON || cameraMode == CameraType::THIRD_PERSON_LOCKED) plane.position = plane.position + offset;
             }
         } else {
@@ -238,6 +245,8 @@ int main() {
                 if (cameraMode == CameraType::FIRST_PERSON) {
                     DrawModel(*plane.cockpitModel, plane.position, 1.0f, WHITE);
                 } else DrawModel(*plane.model, plane.position, 1.0f, WHITE);
+
+                DrawModel(*enemy.model, enemy.position, 1.0f, WHITE);
                 
                 //DrawModel(map, {0, 0, 0}, 1.0f, WHITE);
                 
@@ -247,29 +256,23 @@ int main() {
 
                 for (int i = 0; i < 79; ++i) {
                     for (int j = 0; j < 80; ++j) {
-                        rlBegin(RL_TRIANGLES);
+                        rlBegin(RL_QUADS);
                             if (heights[i][j] > 30) rlColor4ub(255, 255, 255, 255); else rlColor4ub(heights[i][j]+100, 255, 0, 255); // Green
                             rlVertex3f(i*0.1*scale, heights[i][j], j*0.1*scale);   // Top vertex
                             
                             if (heights[i][j+1] > 30) rlColor4ub(255, 255, 255, 255); else rlColor4ub(heights[i][j+1]+100, 255, 0, 255); // Green
                             rlVertex3f(i*0.1*scale, heights[i][j+1], (j+1)*0.1*scale); // Bottom-left vertex
+
+                            if (heights[i+1][j+1] > 30) rlColor4ub(255, 255, 255, 255); else rlColor4ub(heights[i+1][j+1]+100, 255, 0, 255); // Green
+                            rlVertex3f((i+1)*0.1*scale, heights[i+1][j+1], (j+1)*0.1*scale);   // Top vertex
                             
                             if (heights[i+1][j] > 30) rlColor4ub(255, 255, 255, 255); else rlColor4ub(heights[i+1][j]+100, 255, 0, 255); // Green
                             rlVertex3f((i+1)*0.1*scale, heights[i+1][j], (j)*0.1*scale);
                         rlEnd();
 
-                        rlBegin(RL_TRIANGLES);
-                            if (heights[i+1][j+1] > 30) rlColor4ub(255, 255, 255, 255); else rlColor4ub(heights[i+1][j+1]+100, 255, 0, 255); // Green
-                            rlVertex3f((i+1)*0.1*scale, heights[i+1][j+1], (j+1)*0.1*scale);   // Top vertex
-                            
-                            if (heights[i][j+1] > 30) rlColor4ub(255, 255, 255, 255); else rlColor4ub(heights[i][j+1]+100, 255, 0, 255); // Green
-                            rlVertex3f(i*0.1*scale, heights[i][j+1], (j+1)*0.1*scale); // Bottom-left vertex
-                            
-                            if (heights[i+1][j] > 30) rlColor4ub(255, 255, 255, 255); else rlColor4ub(heights[i+1][j]+100, 255, 0, 255); // Green
-                            rlVertex3f((i+1)*0.1*scale, heights[i+1][j], (j)*0.1*scale);
-                        rlEnd();
+                        
                     }
-                }
+                }//*/
                 
             EndMode3D();
         EndTextureMode();
@@ -295,6 +298,7 @@ int main() {
     }
     
     UnloadModel(f16);
+    UnloadModel(enemyPlane);
     UnloadModel(f16Cockpit);
     UnloadModel(map);
     UnloadModel(skybox);

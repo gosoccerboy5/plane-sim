@@ -30,9 +30,10 @@ class Plane {
     float rudderDeflection = 0;
     
     Plane(Model* model, Model* cockpitModel): model(model), cockpitModel(cockpitModel) {
-        velocity = {0, 0, 3.0f};
+        velocity = {0, 0, 1.0f};
         position = (Vector3){ 0.0f, 20.0f, 0.0f };
     }
+    Plane(Model* model): Plane(model, nullptr) {}
     
     void normalizeOrientationVectors() {
         front = Vector3Normalize(front);
@@ -42,8 +43,40 @@ class Plane {
         velocity = Vector3Scale(front, Vector3Length(velocity));
         position = position + velocity;
         pitch(elevatorDeflection * 0.02);
-        roll(aileronDeflection * .1);
+        roll(aileronDeflection * .2);
         yaw(rudderDeflection * 0.0075);
+
+        model->transform = {
+            right().x, up.x, front.x, 0.0f,
+            right().y, up.y, front.y, 0.0f,
+            right().z, up.z, front.z, 0.0f,
+            0.0f,      0.0f, 0.0f,    1.0f,
+        };
+        if (cockpitModel) cockpitModel->transform = model->transform;
+    }
+    void attack(const Plane& target) {
+        float rollSpeed = 0.03, pitchSpeed = 0.01;
+        Vector3 relative = target.position - position;
+        float angleToTarget = Vector3Angle(relative, front);
+        if (angleToTarget < 0.01) return;
+        float targetAngleToSelf = Vector3Angle(Vector3Negate(relative), target.front);
+        float horizontal = Vector3DotProduct(relative, right());
+        float vertical = Vector3DotProduct(relative, up);
+        float forward = Vector3DotProduct(relative, front);
+        float horizontalAngle = atan2(vertical, horizontal);
+        float verticalAngle = atan2(vertical, forward);
+        if ((abs(verticalAngle) < PI*0.75 && targetAngleToSelf > angleToTarget / 4.0) || Vector3Length(relative) < Vector3Length(target.velocity)*20.0) { //check that he isnt on our 6 to engage in 1 circle, otherwise we ditch out to 2 circle and try again
+            
+            if (abs(horizontalAngle-PI/2.0) <= rollSpeed) {
+                roll(horizontalAngle-PI/2.0);
+                pitch(std::min(verticalAngle, pitchSpeed));
+            } else {
+                if (horizontal > 0) {
+                    roll(rollSpeed);
+                } else (roll(-rollSpeed));
+            }
+        } else pitch(pitchSpeed);
+        
     }
     Vector3 right() const {
         return Vector3CrossProduct(front, up);
