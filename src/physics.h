@@ -55,7 +55,7 @@ class Plane {
         if (cockpitModel) cockpitModel->transform = model->transform;
     }
     void attack(const Plane& target) {
-        float rollSpeed = 0.03, pitchSpeed = 0.01;
+        float rollSpeed = 0.03, pitchSpeed = DEG2RAD*20*0.02;
         Vector3 relative = target.position - position;
         float angleToTarget = Vector3Angle(relative, front);
         if (angleToTarget < 0.01) return;
@@ -66,7 +66,6 @@ class Plane {
         float horizontalAngle = atan2(vertical, horizontal);
         float verticalAngle = atan2(vertical, forward);
         if ((abs(verticalAngle) < PI*0.75 && targetAngleToSelf > angleToTarget / 4.0) || Vector3Length(relative) < Vector3Length(target.velocity)*20.0) { //check that he isnt on our 6 to engage in 1 circle, otherwise we ditch out to 2 circle and try again
-            
             if (abs(horizontalAngle-PI/2.0) <= rollSpeed) {
                 roll(horizontalAngle-PI/2.0);
                 pitch(std::min(verticalAngle, pitchSpeed));
@@ -75,7 +74,9 @@ class Plane {
                     roll(rollSpeed);
                 } else (roll(-rollSpeed));
             }
-        } else pitch(pitchSpeed);
+        } else {
+            pitch(pitchSpeed);
+        }
         
     }
     Vector3 right() const {
@@ -129,5 +130,13 @@ class PerlinNoise {
         return finalValue;
     }
 };
+
+//returns the location of the collision relative to where the target is right now
+Vector3 leadAngleCalculation(Vector3 relative, Vector3 vTarget, float bulletSpeed) {
+    float relativeVelocityAngle = Vector3Angle(relative, vTarget);
+    float launchAngle = asin((Vector3Length(vTarget)/bulletSpeed) * sin(relativeVelocityAngle));
+    float collisionAngle = PI-relativeVelocityAngle-launchAngle;
+    return Vector3Normalize(vTarget) * Vector3Length(relative) * sin(launchAngle)/sin(collisionAngle);
+}
 
 #endif

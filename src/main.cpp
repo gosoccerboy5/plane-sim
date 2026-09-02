@@ -22,6 +22,11 @@ enum CameraType {
     FIRST_PERSON,
 };
 
+enum AimType {
+    DOT,
+    RING,
+};
+
 float randomFloat() {
     static std::random_device rd;
     static std::mt19937 gen(rd());
@@ -97,6 +102,9 @@ int main() {
     Plane enemy(&enemyPlane);
     enemy.position = {4000.0f, 300.0f, 4100.0f};
     enemy.front = {0.0f, 0.0f, -1.0f};
+    
+    Mesh ringAimerMesh = GenMeshTorus(0.1, 0.5, 6, 12);
+    Model ringAimer = LoadModelFromMesh(ringAimerMesh);
 
     bool hasGotMouseInput = false;
 
@@ -113,7 +121,6 @@ int main() {
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
-
         if (!paused) {
             if (!IsCursorHidden()) {
                 DisableCursor();
@@ -126,8 +133,8 @@ int main() {
             Vector2 mouseMovement = GetMouseDelta();
             
             if (hasGotMouseInput && (IsMouseButtonDown(MOUSE_BUTTON_RIGHT) || IsCursorHidden())) {
-                camAngle.x += mouseMovement.x*0.01;
-                camAngle.y -= mouseMovement.y*0.01;
+                camAngle.x += mouseMovement.x*0.002;
+                camAngle.y -= mouseMovement.y*0.002;
             }
             camAngle.y = Clamp(camAngle.y, -3.14/2, 3.14/2);
             if (!hasGotMouseInput && (mouseMovement.x != 0 || mouseMovement.y != 0)) hasGotMouseInput = true;
@@ -242,15 +249,38 @@ int main() {
             ClearBackground(RAYWHITE);
 
             BeginMode3D(camera);
+                float pipper3DDistance = 20.0f;
+                float bulletSpeed = 10.0f;
                 if (cameraMode == CameraType::FIRST_PERSON) {
                     DrawModel(*plane.cockpitModel, plane.position, 1.0f, WHITE);
-                } else DrawModel(*plane.model, plane.position, 1.0f, WHITE);
+                    
+                    float distanceToEnemy = Vector3Length(enemy.position-plane.position);
+                    float angleToEnemy = Vector3Angle(enemy.position-plane.position, plane.front);
+                    
+                    Vector3 enemyLead = leadAngleCalculation(enemy.position-plane.position, enemy.velocity, bulletSpeed);
+                    Vector3 pipperInFront = camera.position + Vector3Scale(plane.front, pipper3DDistance);
+                    Vector3 pipperWithLead = pipperInFront - enemyLead*pipper3DDistance/distanceToEnemy;
+                    
+                    ringAimer.transform = plane.model->transform;
+                    
+                    
+                    if (angleToEnemy < 0.4) {
+                        DrawSphere(pipperInFront, .04, RED);
+                        DrawModel(ringAimer, pipperWithLead, 1.0f, RED);
+                    } else {
+                        DrawSphere(pipperInFront, .04, RED);
+                        DrawModel(ringAimer, pipperInFront, 1.0f, RED);
+                    }
+                    
+                    //DrawSphere(enemy.position + enemyLead, .4, RED);
+                } else {
+                    DrawModel(*plane.model, plane.position, 1.0f, WHITE);
+                }
 
                 DrawModel(*enemy.model, enemy.position, 1.0f, WHITE);
                 
-                //DrawModel(map, {0, 0, 0}, 1.0f, WHITE);
                 
-                DrawSphere(plane.position + Vector3Scale(plane.front, 100), .4, RED);
+                //DrawModel(map, {0, 0, 0}, 1.0f, WHITE);
 
                 float scale = 1000.0f;
 
@@ -302,6 +332,7 @@ int main() {
     UnloadModel(f16Cockpit);
     UnloadModel(map);
     UnloadModel(skybox);
+    UnloadModel(ringAimer);
     
     UnloadRenderTextureDepthTex(target);
     UnloadShader(depthShader);      // Unload shader
